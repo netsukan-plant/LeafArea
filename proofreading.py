@@ -25,3 +25,4 @@ def calculate_pixel_per_cm(reference_image_path):
     pixel_per_cm = w / 2.0  # 2cmの幅なので1cmはその半分
     print(f"Calculated pixel per cm: {pixel_per_cm} pixels/cm")
     return pixel_per_cm
+

@@ -31,6 +31,13 @@ thresholds = load_thresholds(thresholds_file)
 reference_image_path = 'reference_square.jpg'
 pixel_per_cm = calculate_pixel_per_cm(reference_image_path)
 
+# 1ピクセルあたりの長さ（cm）
+cm_per_pixel = 1.0 / pixel_per_cm
+
+# 補正用の四角形の面積（2cm × 2cm）
+square_area_cm2 = 2 * 2  # 2cm × 2cm = 4 cm²
+square_area_pixels = (pixel_per_cm * 2) ** 2  # ピクセル数での四角形の面積
+
 # 入力画像フォルダと出力結果フォルダのパス
 input_folder = 'images'
 output_folder = 'results'
@@ -59,7 +66,18 @@ csv_file_path = os.path.join(output_folder_with_time, 'results.csv')
 # CSVファイルを作成し、ヘッダーを書き込む
 with open(csv_file_path, mode='w', newline='') as csv_file:
     csv_writer = csv.writer(csv_file)
-    csv_writer.writerow(['Filename', 'Grayscale Area (cm^2)', 'Green Mask Area (cm^2)'])
+    csv_writer.writerow([
+        'Filename', 
+        'Grayscale Area (cm^2)', 
+        'Green Mask Area (cm^2)', 
+        'Reference Square Area (pixels)', 
+        'Reference Square Area (cm^2)',
+        'Pixel per cm', 
+        'Total Image Pixels', 
+        'Total Image Area (cm^2)', 
+        'Mask Area Pixels', 
+        'Mask Area (cm^2)'
+    ])
 
 # 画像フォルダからすべての画像ファイルを取得
 image_files = [f for f in os.listdir(input_folder) if f.endswith(('.jpg', '.jpeg', '.png'))]
@@ -76,6 +94,10 @@ for image_file in image_files:
 
     # 拡張子を除いたファイル名部分だけを取得
     file_name_without_ext = os.path.splitext(image_file)[0]
+
+    # 画像全体のピクセル数と面積を計算
+    total_pixels = image.shape[0] * image.shape[1]
+    total_area_cm2 = total_pixels * (cm_per_pixel ** 2)  # ピクセル数から面積に変換
 
     # グレースケール画像に変換
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -102,41 +124,43 @@ for image_file in image_files:
     area_green_pixels = np.sum(mask == 255)
     area_green_cm2 = area_green_pixels / (pixel_per_cm ** 2)  # ピクセル数から平方センチメートルに変換
 
-    # グレースケール境界画像に面積を表示
-    cv2.putText(image, f'Grayscale Area: {area_gray_cm2:.2f} cm^2', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+    # グレースケール境界画像に面積を表示（グレースケール画像上）
+    gray_image_with_text = cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR)  # グレースケールを3チャンネルに変換
+    cv2.putText(gray_image_with_text, f'Grayscale Area: {area_gray_cm2:.2f} cm^2', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 3)
 
-    # 緑のマスク境界画像に面積を表示
-    cv2.putText(image, f'Green Area: {area_green_cm2:.2f} cm^2', (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+    # 緑のマスク境界画像に面積を表示（HSVマスク画像上）
+    mask_image_with_text = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)  # マスクを3チャンネルに変換
+    cv2.putText(mask_image_with_text, f'Green Area: {area_green_cm2:.2f} cm^2', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 3)
 
-    # 結果の画像を保存
+    # 元画像にもテキストを表示（元画像上）
+    cv2.putText(image, f'Original Image', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 3)
+
+    # グレースケール、HSVマスク、元画像を横に結合して表示する
+    combined_image = np.hstack((cv2.cvtColor(image, cv2.COLOR_BGR2RGB), gray_image_with_text, mask_image_with_text))
+
+    # 結果の画像を保存（横並びの画像）
     result_image_path = os.path.join(output_folder_with_time_image, f'result_{file_name_without_ext}.jpg')
-    plt.figure(figsize=(10, 10))
-
-    plt.subplot(2, 2, 1)
-    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    plt.title('Original Image')
-
-    plt.subplot(2, 2, 2)
-    plt.imshow(threshold_image, cmap='gray')
-    plt.title('Grayscale Threshold Image')
-
-    plt.subplot(2, 2, 3)
-    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    plt.title(f'Grayscale Contours\nArea: {area_gray_cm2:.2f} cm^2')
-
-    plt.subplot(2, 2, 4)
-    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    plt.title(f'Green Contours\nArea: {area_green_cm2:.2f} cm^2')
-
+    plt.figure(figsize=(20, 10))
+    plt.imshow(combined_image)
+    plt.axis('off')  # 軸を非表示にする
     plt.tight_layout()
-
-    # 書き出すために結果を保存
     plt.savefig(result_image_path)
-    plt.close()  # メモリ節約のためウィンドウを閉じる
+    plt.close()
 
     # 画像ごとの結果をCSVに追記
     with open(csv_file_path, mode='a', newline='') as csv_file:
         csv_writer = csv.writer(csv_file)
-        csv_writer.writerow([image_file, area_gray_cm2, area_green_cm2])
+        csv_writer.writerow([
+            image_file, 
+            area_gray_cm2, 
+            area_green_cm2, 
+            square_area_pixels, 
+            square_area_cm2, 
+            cm_per_pixel, 
+            total_pixels, 
+            total_area_cm2, 
+            area_green_pixels, 
+            area_green_cm2
+        ])
 
     print(f"Processed and saved: {result_image_path}")
