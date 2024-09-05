@@ -5,6 +5,27 @@ import os
 import datetime
 import csv
 
+# 閾値ファイルを読み込む
+thresholds_file = 'thresholds.csv'
+
+# 閾値の読み込み関数
+def load_thresholds(file_path):
+    with open(file_path, mode='r') as file:
+        csv_reader = csv.DictReader(file)
+        thresholds = next(csv_reader)  # 最初の行を取得
+        return {
+            'grayscale_threshold': int(thresholds['grayscale_threshold']),
+            'lower_hue': int(thresholds['lower_hue']),
+            'lower_saturation': int(thresholds['lower_saturation']),
+            'lower_value': int(thresholds['lower_value']),
+            'upper_hue': int(thresholds['upper_hue']),
+            'upper_saturation': int(thresholds['upper_saturation']),
+            'upper_value': int(thresholds['upper_value']),
+        }
+
+# 閾値をロード
+thresholds = load_thresholds(thresholds_file)
+
 # 入力画像フォルダと出力結果フォルダのパス
 input_folder = 'images'
 output_folder = 'results'
@@ -55,12 +76,12 @@ for image_file in image_files:
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # グレースケールの閾値処理
-    _, threshold_image = cv2.threshold(gray_image, 127, 255, cv2.THRESH_BINARY)
+    _, threshold_image = cv2.threshold(gray_image, thresholds['grayscale_threshold'], 255, cv2.THRESH_BINARY)
 
     # HSV画像に変換して緑色抽出
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower_green = np.array([0, 6, 0])
-    upper_green = np.array([180, 255, 255])
+    lower_green = np.array([thresholds['lower_hue'], thresholds['lower_saturation'], thresholds['lower_value']])
+    upper_green = np.array([thresholds['upper_hue'], thresholds['upper_saturation'], thresholds['upper_value']])
     mask = cv2.inRange(hsv_image, lower_green, upper_green)
 
     # ノイズ除去処理（モルフォロジー）
