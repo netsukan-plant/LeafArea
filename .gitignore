@@ -1,3 +1,9 @@
+# 画像などを無視するための設定
+results/
+images/
+
+#以下，基本的なpythonのbuild生成物に関する記述
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
