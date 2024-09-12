@@ -116,6 +116,10 @@ with open(csv_file_path, mode='w', newline='') as csv_file:
         'Total Image Area (cm^2)', 
     ])
 
+##################################
+# ここから各画像に対して実施する計算
+##################################
+
 # 画像フォルダからすべての画像ファイルを取得
 image_files = [f for f in os.listdir(input_folder) if f.endswith(('.jpg', '.jpeg', '.png'))]
 
@@ -124,30 +128,25 @@ for image_file in image_files:
     image_path = os.path.join(input_folder, image_file)
     image = cv2.imread(image_path)
 
-    # 画像が読み込まれていない場合、スキップ
-    if image is None:
+    if image is None:   # 画像が読み込まれていない場合、スキップ
         print(f"Error: Image '{image_file}' not found or cannot be opened.")
         continue
 
-    # 拡張子を除いたファイル名部分だけを取得
-    file_name_without_ext = os.path.splitext(image_file)[0]
+    file_name_without_ext = os.path.splitext(image_file)[0] # 拡張子を除いたファイル名部分だけを取得
 
     # 画像全体のピクセル数と面積を計算
     total_pixels = image.shape[0] * image.shape[1]
     total_area_cm2 = total_pixels * (cm_per_pixel ** 2)  # ピクセル数から面積に変換
 
-    # グレースケール画像に変換
-    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    # グレースケールの閾値処理
-    _, threshold_image = cv2.threshold(gray_image, thresholds['grayscale_threshold'], 255, cv2.THRESH_BINARY)
+    # グレースケール処理
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)    #グレースケール変換
+    _, threshold_image = cv2.threshold(gray_image, thresholds['grayscale_threshold'], 255, cv2.THRESH_BINARY)   # グレースケールの閾値処理
 
     # HSV画像に変換して緑色抽出
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     lower_green = np.array([thresholds['lower_hue'], thresholds['lower_saturation'], thresholds['lower_value']])
     upper_green = np.array([thresholds['upper_hue'], thresholds['upper_saturation'], thresholds['upper_value']])
     mask = cv2.inRange(hsv_image, lower_green, upper_green)
-
     # ノイズ除去処理（モルフォロジー）
     kernel = np.ones((5, 5), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
