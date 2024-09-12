@@ -1,6 +1,8 @@
 # 画像などを無視するための設定
 results/
-images/
+# imagesフォルダ内の全てのファイルを無視
+images/*
+
 
 #以下，基本的なpythonのbuild生成物に関する記述
 
