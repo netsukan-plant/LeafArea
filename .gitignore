@@ -2,6 +2,8 @@
 results/
 # imagesフォルダ内の全てのファイルを無視
 images/*
+# imagesフォルダ自体は無視しない
+!images/
 
 
 #以下，基本的なpythonのbuild生成物に関する記述

@@ -47,6 +47,8 @@ if not os.path.exists(output_folder):
 
 # 実行時刻を取得して、フォルダ名に使用
 current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+# csv書き込みようにも実行日を取得
+execution_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # 実行時刻を基にしたフォルダパスを作成
 output_folder_with_time = os.path.join(output_folder, current_time)
@@ -63,20 +65,55 @@ if not os.path.exists(output_folder_with_time_image):
 # CSVファイルのパスを指定
 csv_file_path = os.path.join(output_folder_with_time, 'results.csv')
 
-# CSVファイルを作成し、ヘッダーを書き込む
+# CSVファイルを作成し、実行日と閾値を書き込む
 with open(csv_file_path, mode='w', newline='') as csv_file:
     csv_writer = csv.writer(csv_file)
+    
+    # 実行日を書き込む
+    csv_writer.writerow(['Execution Date', execution_date])
+
+    csv_writer.writerow([]) #空行
+
+    csv_writer.writerow(['SETTING'])
+    
+    # 複数の閾値を書き込む
+    csv_writer.writerows([
+        ['Grayscale Threshold', thresholds['grayscale_threshold']],
+        ['Lower Hue', thresholds['lower_hue']],
+        ['Lower Saturation', thresholds['lower_saturation']],
+        ['Lower Value', thresholds['lower_value']],
+        ['Upper Hue', thresholds['upper_hue']],
+        ['Upper Saturation', thresholds['upper_saturation']],
+        ['Upper Value', thresholds['upper_value']]
+    ])
+    
+    csv_writer.writerow([]) #空行
+    csv_writer.writerow(['CORRECTION'])
+    csv_writer.writerows([
+        ['Reference Square Area (pixels)', square_area_pixels],
+        ['Reference Square Area (cm^2)', square_area_cm2],
+        ['Pixel per cm', cm_per_pixel]
+    ])
+    csv_writer.writerow([]) #空行
+    csv_writer.writerow(['RESULTS'])
+    # ヘッダーを書き込む
+    csv_writer.writerow([
+        'File', 
+        'Grayscale', 
+        '', 
+        'HSV',
+        '',
+        'Total Image', 
+        '', 
+    ])
     csv_writer.writerow([
         'Filename', 
-        'Grayscale Area (cm^2)', 
-        'Green Mask Area (cm^2)', 
-        'Reference Square Area (pixels)', 
-        'Reference Square Area (cm^2)',
-        'Pixel per cm', 
-        'Total Image Pixels', 
+        'Grayscale Plant Area (pixels)', 
+        'Grayscale Plant Area (cm^2)', 
+        'HSV Plant Area (pixels)',
+        'HSV Plant Area (cm^2)',
+        'Total Image Area (pixels)', 
         'Total Image Area (cm^2)', 
-        'Mask Area Pixels', 
-        'Mask Area (cm^2)'
     ])
 
 # 画像フォルダからすべての画像ファイルを取得
@@ -152,15 +189,12 @@ for image_file in image_files:
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow([
             image_file, 
-            area_gray_cm2, 
-            area_green_cm2, 
-            square_area_pixels, 
-            square_area_cm2, 
-            cm_per_pixel, 
+            area_gray_pixels,
+            area_gray_cm2,
+            area_green_pixels, 
+            area_green_cm2,
             total_pixels, 
             total_area_cm2, 
-            area_green_pixels, 
-            area_green_cm2
         ])
 
     print(f"Processed and saved: {result_image_path}")
