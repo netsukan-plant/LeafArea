@@ -6,6 +6,23 @@ import datetime
 import csv
 from proofreading import calculate_pixel_per_cm
 
+# モード選択のための入力
+def select_mode():
+    print("モードを選択してください:")
+    print("1: ノイズキャンセルを行う")
+    print("2: ノイズキャンセルを行わない")
+    
+    while True:
+        choice = input("モード番号を入力してください (1 または 2): ")
+        if choice == '1':
+            print("ノイズキャンセルを実施します")
+            return True  # ノイズキャンセルを行う
+        elif choice == '2':
+            print("ノイズキャンセルは実施しません")
+            return False  # ノイズキャンセルを行わない
+        else:
+            print("無効な選択です。もう一度入力してください。")
+
 # 閾値ファイルを読み込む
 thresholds_file = 'thresholds.csv'
 
@@ -38,6 +55,13 @@ cm_per_pixel = 1.0 / pixel_per_cm
 square_area_cm2 = 2 * 2  # 2cm × 2cm = 4 cm²
 square_area_pixels = (pixel_per_cm * 2) ** 2  # ピクセル数での四角形の面積
 
+# ノイズキャンセルモードの選択
+noise_cancellation = select_mode()
+if noise_cancellation:
+    min_area = 100
+else:
+    min_area = 0
+
 # 入力画像フォルダと出力結果フォルダのパス
 input_folder = 'images'
 output_folder = 'results'
@@ -62,6 +86,7 @@ if not os.path.exists(output_folder_with_time):
 if not os.path.exists(output_folder_with_time_image):
     os.makedirs(output_folder_with_time_image)
 
+
 # CSVファイルのパスを指定
 csv_file_path = os.path.join(output_folder_with_time, 'results.csv')
 
@@ -70,43 +95,41 @@ with open(csv_file_path, mode='w', newline='') as csv_file:
     csv_writer = csv.writer(csv_file)
     
     # 実行日を書き込む
-    csv_writer.writerow(['Execution Date', execution_date])
-
+    csv_writer.writerows([
+        ['Execution Date', execution_date],
+        ['Program Type', 'nomal'],
+        ])
     csv_writer.writerow([]) #空行
-
-    csv_writer.writerow(['SETTING'])
     
     # 複数の閾値を書き込む
     csv_writer.writerows([
+        ['SETTING'],
         ['Grayscale Threshold', thresholds['grayscale_threshold']],
         ['Lower Hue', thresholds['lower_hue']],
         ['Lower Saturation', thresholds['lower_saturation']],
         ['Lower Value', thresholds['lower_value']],
         ['Upper Hue', thresholds['upper_hue']],
         ['Upper Saturation', thresholds['upper_saturation']],
-        ['Upper Value', thresholds['upper_value']]
+        ['Upper Value', thresholds['upper_value']],
+        ['min_area',min_area]
     ])
-    
     csv_writer.writerow([]) #空行
-    csv_writer.writerow(['CORRECTION'])
+
+    #校正情報を書き込む
     csv_writer.writerows([
+        ['CORRECTION'],
         ['Reference Square Area (pixels)', square_area_pixels],
         ['Reference Square Area (cm^2)', square_area_cm2],
         ['Pixel per cm', cm_per_pixel]
     ])
     csv_writer.writerow([]) #空行
+
     csv_writer.writerow(['RESULTS'])
     # ヘッダーを書き込む
-    csv_writer.writerow([
-        'File', 
-        'Grayscale', 
-        '', 
-        'HSV',
-        '',
-        'Total Image', 
-        '', 
-    ])
-    csv_writer.writerow([
+    csv_writer.writerows([
+        ['RESULTS'],
+        ['File', 'Grayscale','','HSV','','Total Image', '', ],
+        [
         'Filename', 
         'Grayscale Plant Area (pixels)', 
         'Grayscale Plant Area (cm^2)', 
@@ -114,6 +137,7 @@ with open(csv_file_path, mode='w', newline='') as csv_file:
         'HSV Plant Area (cm^2)',
         'Total Image Area (pixels)', 
         'Total Image Area (cm^2)', 
+        ]
     ])
 
 ##################################
@@ -138,6 +162,10 @@ for image_file in image_files:
     total_pixels = image.shape[0] * image.shape[1]
     total_area_cm2 = total_pixels * (cm_per_pixel ** 2)  # ピクセル数から面積に変換
 
+    ####
+    # ここから画像処理
+    # ####
+
     # グレースケール処理
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)    #グレースケール変換
     _, threshold_image = cv2.threshold(gray_image, thresholds['grayscale_threshold'], 255, cv2.THRESH_BINARY)   # グレースケールの閾値処理
@@ -147,10 +175,36 @@ for image_file in image_files:
     lower_green = np.array([thresholds['lower_hue'], thresholds['lower_saturation'], thresholds['lower_value']])
     upper_green = np.array([thresholds['upper_hue'], thresholds['upper_saturation'], thresholds['upper_value']])
     mask = cv2.inRange(hsv_image, lower_green, upper_green)
-    # ノイズ除去処理（モルフォロジー）
-    kernel = np.ones((5, 5), np.uint8)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    if noise_cancellation:
+        # グレースケール画像に対してのノイズ除去
+        contours, _ = cv2.findContours(threshold_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # グレースケール画像の小さい領域を除去するための輪郭抽出
+        min_area_threshold = min_area  # 小さい領域を削除するための閾値 (例: 面積が100ピクセル以下の領域を削除)
+        # 小さい領域を削除した新しいグレースケールマスクを作成
+        cleaned_threshold_image = np.zeros_like(threshold_image)
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area > min_area_threshold:
+                # 小さい領域でなければ新しいグレースケールマスクに描画
+                cv2.drawContours(threshold_image, [contour], -1, 255, thickness=cv2.FILLED)
+
+        # HSVのノイズ除去処理
+        # モルフォロジー ##モルフォジー処理についてはネット参照のこと
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel) #クローズ処理（膨張→収縮）
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel) #オープン処理（収縮→膨張）
+        # 小さい領域を除去するための輪郭抽出
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        #  小さい領域の削除
+        min_area_threshold = min_area  # 小さい領域を削除するための閾値 (例: 面積が100ピクセル以下の領域を削除)
+        mask = np.zeros_like(mask)  # 小さい領域を削除した新しいマスクを作成
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area > min_area_threshold:
+                cv2.drawContours(mask, [contour], -1, 255, thickness=cv2.FILLED)    # 小さい領域でなければ新しいマスクに描画
+
+    #####
+    # ここから面積計算
+    # #####
 
     # 面積計算（グレースケール）
     area_gray_pixels = np.sum(threshold_image == 255)
